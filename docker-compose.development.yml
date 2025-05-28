@@ -21,7 +21,12 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     logging:
-      driver: none
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # logging:
+    #   driver: none
 
   postgres:
     image: postgres:14
@@ -43,7 +48,12 @@ services:
     networks:
       - default
     logging:
-      driver: none
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # logging:
+    #   driver: none
 
   pgadmin:
     image: dpage/pgadmin4
@@ -58,7 +68,12 @@ services:
     volumes:
       - ./.data/pgadmin:/var/lib/pgadmin
     logging:
-      driver: none
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # logging:
+    #   driver: none
 
   redis:
     image: redis:latest
@@ -67,7 +82,12 @@ services:
     volumes:
       - ./.data/redis:/data
     logging:
-      driver: none
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # logging:
+    #   driver: none
 
   grafana:
     image: grafana/grafana:11.0.0
@@ -83,7 +103,12 @@ services:
     networks:
       - default
     logging:
-      driver: none
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # logging:
+    #   driver: none
 
   loki:
     image: grafana/loki:3.0.0
@@ -100,7 +125,12 @@ services:
     ports:
       - 9055:3100
     logging:
-      driver: none
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # logging:
+    #   driver: none
 
   promtail:
     image: grafana/promtail:3.0.0
@@ -123,7 +153,12 @@ services:
     ports:
       - "9056:9080"
     logging:
-      driver: none
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # logging:
+    #   driver: none
 
   telegram-bot-api:
     image: aiogram/telegram-bot-api:latest
