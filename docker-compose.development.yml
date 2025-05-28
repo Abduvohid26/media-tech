@@ -64,7 +64,7 @@ services:
     env_file:
       - .env
     ports:
-      - "9052:80"
+      - "9052:80" 
     volumes:
       - ./.data/pgadmin:/var/lib/pgadmin
     logging:
