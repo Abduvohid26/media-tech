@@ -181,7 +181,6 @@ async def track_handle_search_message(update: Update, context: Context) -> None:
   (search_results_text, reply_markup) = await _track_search(context, search_query, \
       search_page, update.effective_chat.id, update.effective_user.id)
   
-  print("Ketti")
   await advertisement_message_send(context, update.effective_chat.id, Advertisement.KIND_TRACK_SEARCH, \
       text=search_results_text, reply_markup=reply_markup, reply_to_message_id=update.message.id)
 
