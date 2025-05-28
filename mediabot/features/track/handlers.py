@@ -326,7 +326,7 @@ async def track_recognize_by_file_path(context: Context, chat_id: int, user_id: 
 
 async def track_handle_recognize_from_voice_message(update: Update, context: Context):
   assert update.message and update.message.voice
-
+  print("HI")
   # TODO: add required join
 
   if update.message.voice.file_size >= 31457280:

@@ -98,21 +98,41 @@ class Track_DB:
     #           await cursor.execute(select_sql, params)
     #           rows = await cursor.fetchall()
     #           return rows
+    # @staticmethod
+    # async def get_by_query(query: str, limit: int = 10, threshold: float = 0.3) -> List[_Track_DB]:
+    #     select_sql = """
+    #         SELECT video_id AS id, title, performer, duration, thumbnail_url
+    #         FROM tracks
+    #         WHERE similarity(query, %s) > %s
+    #         ORDER BY similarity(query, %s) DESC
+    #         LIMIT %s;
+    #     """
+    #     params = [query, threshold, query, limit]
+
+    #     async with acquire_connection() as conn:
+    #         async with conn.cursor() as cursor:
+    #             await cursor.execute(select_sql, params)
+    #             return await cursor.fetchall()
     @staticmethod
-    async def get_by_query(query: str, limit: int = 10, threshold: float = 0.3) -> List[_Track_DB]:
+    async def get_by_query(query: str, limit: int = 10) -> List[_Track_DB]:
         select_sql = """
             SELECT video_id AS id, title, performer, duration, thumbnail_url
             FROM tracks
-            WHERE similarity(query, %s) > %s
-            ORDER BY similarity(query, %s) DESC
+            WHERE title ILIKE %s OR performer ILIKE %s
+            ORDER BY similarity(title, %s) DESC
             LIMIT %s;
         """
-        params = [query, threshold, query, limit]
+        like_pattern = f"%{query}%"
+        params = [like_pattern, like_pattern, query, limit]
 
         async with acquire_connection() as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(select_sql, params)
                 return await cursor.fetchall()
+
+                
+
+
     @staticmethod
     async def get(track_id: int) -> _Track_DB | None:
         select_sql = """
