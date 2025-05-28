@@ -20,7 +20,7 @@ from mediabot.features.advertisement.handlers import advertisement_message_send
 from mediabot.exceptions import InstanceQuotaLimitReachedException
 from mediabot.utils import get_local_path_of
 from mediabot.features.track.model import Track_DB
-
+import asyncio
 
 
 async def _track_search(context: Context, search_query: str, search_page: int, chat_id: int, user_id: int) -> typing.Tuple[str, InlineKeyboardMarkup]:
@@ -39,16 +39,8 @@ async def _track_search(context: Context, search_query: str, search_page: int, c
     reply_markup = TrackSearchDownloadWebKeyboardMarkup.build(search_results, context) \
         if context.instance.web_feature_enabled else TrackSearchDownloadInlineKeyboardMarkup.build(search_results)
     reply_markup = InlineKeyboardMarkup(reply_markup.inline_keyboard + TrackSearchPaginationKeyboardMarkup.build(search_page).inline_keyboard)
-
-    context.logger.info(None, extra=dict(
-      action="TRACK_SEARCH",
-      search_query=search_query,
-      chat_id=chat_id,
-      user_id=user_id
-    ))
     return (search_results_text, reply_markup)
   except Exception as ex:
-    print(traceback.format_exc())
     await context.bot.send_message(chat_id, context.l("request.failed_text"))
 
     context.logger.error(None, extra=dict(
@@ -61,22 +53,25 @@ async def _track_search(context: Context, search_query: str, search_page: int, c
 
     raise ApplicationHandlerStop()
   finally:
-    new_search_results = await Track.search(search_query, search_page, TRACK_SEARCH_LIMIT)
-    if len(search_results) != len(new_search_results):
-        try:
-          for track in search_results:
-            await Track_DB.delete_by_video_id(track["id"]) 
-          await Track_DB.save_all(search_query, new_search_results)
-        except Exception as ex:
+    async def background_update():
+      try:
+          new_search_results = await Track.search(search_query, search_page, TRACK_SEARCH_LIMIT)
+          if len(search_results or []) != len(new_search_results):
+              for track in search_results or []:
+                  await Track_DB.delete_by_video_id(track["id"])
+              await Track_DB.save_all(search_query, new_search_results)
+      except Exception as ex:
           print(traceback.format_exc())
           await context.bot.send_message(chat_id, context.l("request.failed_text"))
           context.logger.error(None, extra=dict(
-            action="TRACK_SEARCH_FAILED",
-            search_query=search_query,
-            chat_id=chat_id,
-            user_id=user_id,
-            stack_trace=traceback.format_exc()
+              action="TRACK_SEARCH_FAILED",
+              search_query=search_query,
+              chat_id=chat_id,
+              user_id=user_id,
+              stack_trace=traceback.format_exc()
           ))
+  
+    asyncio.create_task(background_update())
 
 
 # async def _track_search(context: Context, search_query: str, search_page: int, chat_id: int, user_id: int) -> typing.Tuple[str, InlineKeyboardMarkup]:
@@ -185,7 +180,8 @@ async def track_handle_search_message(update: Update, context: Context) -> None:
 
   (search_results_text, reply_markup) = await _track_search(context, search_query, \
       search_page, update.effective_chat.id, update.effective_user.id)
-
+  
+  print("Ketti")
   await advertisement_message_send(context, update.effective_chat.id, Advertisement.KIND_TRACK_SEARCH, \
       text=search_results_text, reply_markup=reply_markup, reply_to_message_id=update.message.id)
 
