@@ -67,7 +67,7 @@ async def _track_search(context: Context, search_query: str, search_page: int, c
               await Track_DB.save_all(search_query, new_search_results)
       except Exception as ex:
           print(traceback.format_exc())
-          await context.bot.send_message(chat_id, context.l("request.failed_text"))
+          # await context.bot.send_message(chat_id, context.l("request.failed_text"))
           context.logger.error(None, extra=dict(
               action="TRACK_SEARCH_FAILED",
               search_query=search_query,
