@@ -21,6 +21,10 @@ from mediabot.exceptions import InstanceQuotaLimitReachedException
 from mediabot.utils import get_local_path_of
 from mediabot.features.track.model import Track_DB
 import asyncio
+from pydub import AudioSegment
+import speech_recognition as sr
+import secrets
+import shutil
 
 
 async def _track_search(context: Context, search_query: str, search_page: int, chat_id: int, user_id: int) -> typing.Tuple[str, InlineKeyboardMarkup]:
@@ -32,7 +36,7 @@ async def _track_search(context: Context, search_query: str, search_page: int, c
       search_results = await Track.search(search_query, search_page, TRACK_SEARCH_LIMIT)
       await Track_DB.save_all(search_query, search_results)
     search_results_text = f"🔍 \"{search_query}\"\n\n"
-
+    print(search_results, "RESULSTS")
     for [index, search_result] in enumerate(search_results):
       search_results_text += f"<i><b>{index+1})</b> {search_result['title']} (<u>{time.strftime('%M:%S', time.gmtime(search_result['duration'] or 0))}</u>)</i>\n"
 
@@ -41,6 +45,7 @@ async def _track_search(context: Context, search_query: str, search_page: int, c
     reply_markup = InlineKeyboardMarkup(reply_markup.inline_keyboard + TrackSearchPaginationKeyboardMarkup.build(search_page).inline_keyboard)
     return (search_results_text, reply_markup)
   except Exception as ex:
+    print(traceback.format_exc())
     await context.bot.send_message(chat_id, context.l("request.failed_text"))
 
     context.logger.error(None, extra=dict(
@@ -299,12 +304,18 @@ async def track_handle_popular_tracks_country_code_callback_query(update: Update
 
   await update.callback_query.edit_message_text(popular_tracks_text, reply_markup=reply_markup)
 
+
+
 async def track_recognize_by_file_path(context: Context, chat_id: int, user_id: int, file_path: str, reply_message_id: int = None):
   try:
     recognize_result = await Track.recognize_by_file_path(file_path)
-
+    print("::::::", recognize_result)
+    if recognize_result is None:
+      await voice_convert(file_path, chat_id, user_id, context)
+      return
     await track_recognize_from_recognize_result(context, chat_id, user_id, recognize_result, reply_message_id)
   except Exception:
+    print(traceback.format_exc())
     await context.bot.send_message(chat_id, context.l("request.failed_text"))
 
     context.logger.error(None, extra=dict(
@@ -335,7 +346,6 @@ async def track_handle_recognize_from_voice_message(update: Update, context: Con
 
   voice_file = await update.message.voice.get_file()
   local_voice_file_path = get_local_path_of(voice_file)
-
   await track_recognize_by_file_path(context, update.effective_message.chat.id, \
       update.effective_user.id, local_voice_file_path, update.effective_message.id)
 
@@ -450,3 +460,50 @@ async def track_chosen_inline_query_handler(update: Update, context: Context):
     await Instance.increment_track_used(context.instance.id)
   except Exception:
     pass
+
+
+
+
+
+async def voice_convert(local_voice_file_path: str, chat_id: int, user_id: int, context: Context):
+    print("salommmm")
+    recognizer = sr.Recognizer()
+    temp_file_path = Path("/media-service-files") / (secrets.token_hex(8) + ".oga")
+    temp_file_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(local_voice_file_path, temp_file_path)
+    print(f"[✅] Fayl nusxalandi: {temp_file_path}")
+
+    wav_path = temp_file_path.with_suffix(".wav")
+    audio = AudioSegment.from_file(temp_file_path)
+    audio.export(wav_path, format="wav")
+    print(f"[🔄] WAV fayl tayyor: {wav_path}")
+
+    try:
+        with sr.AudioFile(str(wav_path)) as source:
+            audio_data = recognizer.record(source)
+
+        text = recognizer.recognize_google(audio_data, language="uz")
+        print(f"[📝] Aniqlangan matn: {text}")
+
+        search_page = 0
+        search_results_text, inline_keyboard_markup = await _track_search(
+            context,
+            text,
+            search_page,
+            chat_id,
+            user_id
+        )
+
+        await advertisement_message_send(context, chat_id, Advertisement.KIND_TRACK_SEARCH, \
+         text=search_results_text, reply_markup=inline_keyboard_markup)
+
+    except Exception as e:
+        await context.bot.send_message(chat_id, context.l("request.failed_text"))
+        print(f"[❌] Tanib olishda xatolik: {e}")
+        # await .message.reply_text("❌ Ovozdan matn olinmadi.")
+
+    finally:
+        Path(local_voice_file_path).unlink(missing_ok=True)
+        temp_file_path.unlink(missing_ok=True)
+        wav_path.unlink(missing_ok=True)
+        print("[🧹] Vaqtinchalik fayllar o‘chirildi.")
