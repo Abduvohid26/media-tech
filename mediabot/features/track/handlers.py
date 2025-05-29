@@ -30,11 +30,11 @@ import shutil
 async def _track_search(context: Context, search_query: str, search_page: int, chat_id: int, user_id: int) -> typing.Tuple[str, InlineKeyboardMarkup]:
   search_results = None
   try:
-    search_results = await Track_DB.get_by_query(query=search_query)
+    # search_results = await Track_DB.get_by_query(query=search_query)
       
-    if not search_results:
-      search_results = await Track.search(search_query, search_page, TRACK_SEARCH_LIMIT)
-      await Track_DB.save_all(search_query, search_results)
+    # if not search_results:
+    search_results = await Track.search(search_query, search_page, TRACK_SEARCH_LIMIT)
+      # await Track_DB.save_all(search_query, search_results)
     search_results_text = f"🔍 \"{search_query}\"\n\n"
     print(search_results, "RESULSTS")
     for [index, search_result] in enumerate(search_results):
@@ -57,26 +57,26 @@ async def _track_search(context: Context, search_query: str, search_page: int, c
     ))
 
     raise ApplicationHandlerStop()
-  finally:
-    async def background_update():
-      try:
-          new_search_results = await Track.search(search_query, search_page, TRACK_SEARCH_LIMIT)
-          if len(search_results or []) != len(new_search_results):
-              for track in search_results or []:
-                  await Track_DB.delete_by_video_id(track["id"])
-              await Track_DB.save_all(search_query, new_search_results)
-      except Exception as ex:
-          print(traceback.format_exc())
-          # await context.bot.send_message(chat_id, context.l("request.failed_text"))
-          context.logger.error(None, extra=dict(
-              action="TRACK_SEARCH_FAILED",
-              search_query=search_query,
-              chat_id=chat_id,
-              user_id=user_id,
-              stack_trace=traceback.format_exc()
-          ))
+  # finally:
+  #   async def background_update():
+  #     try:
+  #         new_search_results = await Track.search(search_query, search_page, TRACK_SEARCH_LIMIT)
+  #         if len(search_results or []) != len(new_search_results):
+  #             for track in search_results or []:
+  #                 await Track_DB.delete_by_video_id(track["id"])
+  #             await Track_DB.save_all(search_query, new_search_results)
+  #     except Exception as ex:
+  #         print(traceback.format_exc())
+  #         # await context.bot.send_message(chat_id, context.l("request.failed_text"))
+  #         context.logger.error(None, extra=dict(
+  #             action="TRACK_SEARCH_FAILED",
+  #             search_query=search_query,
+  #             chat_id=chat_id,
+  #             user_id=user_id,
+  #             stack_trace=traceback.format_exc()
+  #         ))
   
-    asyncio.create_task(background_update())
+  #   asyncio.create_task(background_update())
 
 
 # async def _track_search(context: Context, search_query: str, search_page: int, chat_id: int, user_id: int) -> typing.Tuple[str, InlineKeyboardMarkup]:
@@ -309,10 +309,10 @@ async def track_handle_popular_tracks_country_code_callback_query(update: Update
 async def track_recognize_by_file_path(context: Context, chat_id: int, user_id: int, file_path: str, reply_message_id: int = None):
   try:
     recognize_result = await Track.recognize_by_file_path(file_path)
-    print("::::::", recognize_result)
-    if recognize_result is None:
-      await voice_convert(file_path, chat_id, user_id, context)
-      return
+    # print("::::::", recognize_result)
+    # if recognize_result is None:
+    #   await voice_convert(file_path, chat_id, user_id, context)
+    #   return
     await track_recognize_from_recognize_result(context, chat_id, user_id, recognize_result, reply_message_id)
   except Exception:
     print(traceback.format_exc())
