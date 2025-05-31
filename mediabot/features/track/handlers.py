@@ -29,20 +29,31 @@ import shutil
 
 async def _track_search(context: Context, search_query: str, search_page: int, chat_id: int, user_id: int) -> typing.Tuple[str, InlineKeyboardMarkup]:
   search_results = None
+  from_cache = False
+  words = search_query.split()
+  search_query = " ".join(words[:5])
   try:
-    # search_results = await Track_DB.get_by_query(query=search_query)
+    search_results = await Track_DB.get_by_query(query=search_query)
+    # print(search_results, "DB TRACK TEXT RESULT")
       
-    # if not search_results:
-    search_results = await Track.search(search_query, search_page, TRACK_SEARCH_LIMIT)
-      # await Track_DB.save_all(search_query, search_results)
+    if not search_results:
+      search_results = await Track.search(search_query, search_page, TRACK_SEARCH_LIMIT)
+      await Track_DB.save_all(search_query, search_results)
+    else:
+      from_cache = True
     search_results_text = f"🔍 \"{search_query}\"\n\n"
-    print(search_results, "RESULSTS")
     for [index, search_result] in enumerate(search_results):
       search_results_text += f"<i><b>{index+1})</b> {search_result['title']} (<u>{time.strftime('%M:%S', time.gmtime(search_result['duration'] or 0))}</u>)</i>\n"
 
     reply_markup = TrackSearchDownloadWebKeyboardMarkup.build(search_results, context) \
         if context.instance.web_feature_enabled else TrackSearchDownloadInlineKeyboardMarkup.build(search_results)
     reply_markup = InlineKeyboardMarkup(reply_markup.inline_keyboard + TrackSearchPaginationKeyboardMarkup.build(search_page).inline_keyboard)
+    context.logger.info(None, extra=dict(
+      action="TRACK_SEARCH",
+      search_query=search_query,
+      chat_id=chat_id,
+      user_id=user_id
+    ))
     return (search_results_text, reply_markup)
   except Exception as ex:
     print(traceback.format_exc())
@@ -57,6 +68,61 @@ async def _track_search(context: Context, search_query: str, search_page: int, c
     ))
 
     raise ApplicationHandlerStop()
+  finally:
+    if from_cache:
+      async def update_cached_tracks():
+        try:
+          new_results = await Track.search(search_query, search_page, TRACK_SEARCH_LIMIT)
+          if len(search_results or []) != len(new_results) and len(new_results) > len(search_results or []):
+            for track in search_results or []:
+              await Track_DB.delete_by_video_id(track["id"])
+            await Track_DB.save_all(search_query, new_results)
+        except Exception:
+          traceback_text = traceback.format_exc()
+          print(traceback_text)
+          await context.bot.send_message(chat_id, context.l("request.failed_text"))
+          context.logger.error(None, extra=dict(
+            action="TRACK_SEARCH_UPDATE_FAILED",
+            search_query=search_query,
+            chat_id=chat_id,
+            user_id=user_id,
+            stack_trace=traceback_text
+          ))
+      asyncio.create_task(update_cached_tracks())
+
+
+###########################33
+# async def _track_search(context: Context, search_query: str, search_page: int, chat_id: int, user_id: int) -> typing.Tuple[str, InlineKeyboardMarkup]:
+#   search_results = None
+#   try:
+#     # search_results = await Track_DB.get_by_query(query=search_query)
+      
+#     # if not search_results:
+#     search_results = await Track.search(search_query, search_page, TRACK_SEARCH_LIMIT)
+#       # await Track_DB.save_all(search_query, search_results)
+#     search_results_text = f"🔍 \"{search_query}\"\n\n"
+#     print(search_results, "RESULSTS")
+#     for [index, search_result] in enumerate(search_results):
+#       search_results_text += f"<i><b>{index+1})</b> {search_result['title']} (<u>{time.strftime('%M:%S', time.gmtime(search_result['duration'] or 0))}</u>)</i>\n"
+
+#     reply_markup = TrackSearchDownloadWebKeyboardMarkup.build(search_results, context) \
+#         if context.instance.web_feature_enabled else TrackSearchDownloadInlineKeyboardMarkup.build(search_results)
+#     reply_markup = InlineKeyboardMarkup(reply_markup.inline_keyboard + TrackSearchPaginationKeyboardMarkup.build(search_page).inline_keyboard)
+#     return (search_results_text, reply_markup)
+#   except Exception as ex:
+#     print(traceback.format_exc())
+#     await context.bot.send_message(chat_id, context.l("request.failed_text"))
+
+#     context.logger.error(None, extra=dict(
+#       action="TRACK_SEARCH_FAILED",
+#       search_query=search_query,
+#       chat_id=chat_id,
+#       user_id=user_id,
+#       stack_trace=traceback.format_exc()
+#     ))
+############################3
+
+#     raise ApplicationHandlerStop()
   # finally:
   #   async def background_update():
   #     try:
@@ -305,39 +371,98 @@ async def track_handle_popular_tracks_country_code_callback_query(update: Update
   await update.callback_query.edit_message_text(popular_tracks_text, reply_markup=reply_markup)
 
 
+async def track_recognize_by_file_path(context: Context, chat_id: int, user_id: int, file_path: str,
+                                       reply_message_id: int = None):
+  async def recognize_task():
+    try:
+      print("[🔊] Track convert boshlandi...")
+      result = await Track.recognize_by_file_path(file_path)
+      print(result)
 
-async def track_recognize_by_file_path(context: Context, chat_id: int, user_id: int, file_path: str, reply_message_id: int = None):
+      if result:
+        print("[🎵] Track topildi.")
+        await track_recognize_from_recognize_result(context, chat_id, user_id, result, reply_message_id)
+        return "recognized"
+    except Exception as e:
+      print(f"[❌] Track tanishda xatolik: {e}")
+    return None
+
+  async def convert_task():
+    try:
+      print("[🔊] Voice convert boshlandi...")
+      check = await voice_convert(file_path, chat_id, user_id, context)
+      if check:
+        return "converted"
+      else:
+        return None
+    except Exception as e:
+      print(f"[❌] Voice convert xatolik: {e}")
+    return None
+
   try:
-    recognize_result = await Track.recognize_by_file_path(file_path)
-    # print("::::::", recognize_result)
-    # if recognize_result is None:
-    #   await voice_convert(file_path, chat_id, user_id, context)
-    #   return
-    await track_recognize_from_recognize_result(context, chat_id, user_id, recognize_result, reply_message_id)
-  except Exception:
-    print(traceback.format_exc())
+    recognize = asyncio.create_task(recognize_task())
+    convert = asyncio.create_task(convert_task())
+
+    results = await asyncio.gather(recognize, convert, return_exceptions=True)
+    if not any(r for r in results if r in ("recognized", "converted")):
+      print("[⚠️] Har ikki task ham muvaffaqiyatsiz tugadi.")
+      await context.bot.send_message(chat_id, context.l("request.failed_text"))
+
+      context.logger.error(None, extra=dict(
+        action="TRACK_RECOGNIZE_FAILED",
+        chat_id=chat_id,
+        user_id=user_id,
+        file_path=file_path,
+        stack_trace="; ".join([str(r) for r in results if isinstance(r, Exception)])
+      ))
+    else:
+      context.logger.info(None, extra=dict(
+        action="TRACK_RECOGNIZE",
+        chat_id=chat_id,
+        user_id=user_id,
+        file_path=file_path,
+        status="; ".join(str(r) for r in results)
+      ))
+
+  except Exception as e:
+    print("[🚨] Umumiy xatolik:", traceback.format_exc())
     await context.bot.send_message(chat_id, context.l("request.failed_text"))
 
-    context.logger.error(None, extra=dict(
-      action="TRACK_RECOGNIZE_FAILED",
-      chat_id=chat_id,
-      user_id=user_id,
-      file_path=file_path,
-      stack_trace=traceback.format_exc()
-    ))
+#######################3
+# async def track_recognize_by_file_path(context: Context, chat_id: int, user_id: int, file_path: str, reply_message_id: int = None):
+#   try:
+#     recognize_result = await Track.recognize_by_file_path(file_path)
+#     # print("::::::", recognize_result)
+#     # if recognize_result is None:
+#     #   await voice_convert(file_path, chat_id, user_id, context)
+#     #   return
+#     await track_recognize_from_recognize_result(context, chat_id, user_id, recognize_result, reply_message_id)
+#   except Exception:
+#     print(traceback.format_exc())
+#     await context.bot.send_message(chat_id, context.l("request.failed_text"))
 
-    return
+#     context.logger.error(None, extra=dict(
+#       action="TRACK_RECOGNIZE_FAILED",
+#       chat_id=chat_id,
+#       user_id=user_id,
+#       file_path=file_path,
+#       stack_trace=traceback.format_exc()
+#     ))
 
-  context.logger.info(None, extra=dict(
-    action="TRACK_RECOGNIZE",
-    chat_id=chat_id,
-    user_id=user_id,
-    file_path=file_path
-  ))
+#     return
+
+#   context.logger.info(None, extra=dict(
+#     action="TRACK_RECOGNIZE",
+#     chat_id=chat_id,
+#     user_id=user_id,
+#     file_path=file_path
+#   ))
+############################3
 
 async def track_handle_recognize_from_voice_message(update: Update, context: Context):
+  print("INFO IN TRACK IN VOICE MESSAGE")
   assert update.message and update.message.voice
-  print("HI")
+
   # TODO: add required join
 
   if update.message.voice.file_size >= 31457280:
@@ -346,6 +471,7 @@ async def track_handle_recognize_from_voice_message(update: Update, context: Con
 
   voice_file = await update.message.voice.get_file()
   local_voice_file_path = get_local_path_of(voice_file)
+
   await track_recognize_by_file_path(context, update.effective_message.chat.id, \
       update.effective_user.id, local_voice_file_path, update.effective_message.id)
 
@@ -466,17 +592,14 @@ async def track_chosen_inline_query_handler(update: Update, context: Context):
 
 
 async def voice_convert(local_voice_file_path: str, chat_id: int, user_id: int, context: Context):
-    print("salommmm")
     recognizer = sr.Recognizer()
     temp_file_path = Path("/media-service-files") / (secrets.token_hex(8) + ".oga")
     temp_file_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(local_voice_file_path, temp_file_path)
-    print(f"[✅] Fayl nusxalandi: {temp_file_path}")
 
     wav_path = temp_file_path.with_suffix(".wav")
     audio = AudioSegment.from_file(temp_file_path)
     audio.export(wav_path, format="wav")
-    print(f"[🔄] WAV fayl tayyor: {wav_path}")
 
     try:
         with sr.AudioFile(str(wav_path)) as source:
@@ -484,24 +607,23 @@ async def voice_convert(local_voice_file_path: str, chat_id: int, user_id: int, 
 
         text = recognizer.recognize_google(audio_data, language="uz")
         print(f"[📝] Aniqlangan matn: {text}")
-
+        words = text.split()
+        short_text = " ".join(words[:5]) 
         search_page = 0
         search_results_text, inline_keyboard_markup = await _track_search(
             context,
-            text,
+            short_text,
             search_page,
             chat_id,
             user_id
         )
-
         await advertisement_message_send(context, chat_id, Advertisement.KIND_TRACK_SEARCH, \
          text=search_results_text, reply_markup=inline_keyboard_markup)
+        return True
 
     except Exception as e:
-        await context.bot.send_message(chat_id, context.l("request.failed_text"))
         print(f"[❌] Tanib olishda xatolik: {e}")
-        # await .message.reply_text("❌ Ovozdan matn olinmadi.")
-
+        return False
     finally:
         Path(local_voice_file_path).unlink(missing_ok=True)
         temp_file_path.unlink(missing_ok=True)

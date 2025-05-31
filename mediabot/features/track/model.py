@@ -79,59 +79,22 @@ class Track_DB:
         async with acquire_connection() as conn:
             async with conn.cursor() as cursor:
                 await cursor.executemany(insert_sql, data)
-   
 
-    # @staticmethod
-    # async def get_by_query(query: str, limit: int = 10) -> List[_Track_DB]:
-    #   select_sql = """
-    #       SELECT video_id AS id, title, performer, duration, thumbnail_url
-    #       FROM tracks
-    #       WHERE similarity(query, %s::text) > 0.2
-    #       ORDER BY similarity(query, %s::text) DESC
-    #       LIMIT %s;
-    #   """
-    #   params = [query, query, limit]
-
-
-    #   async with acquire_connection() as conn:
-    #       async with conn.cursor() as cursor:
-    #           await cursor.execute(select_sql, params)
-    #           rows = await cursor.fetchall()
-    #           return rows
-    # @staticmethod
-    # async def get_by_query(query: str, limit: int = 10, threshold: float = 0.3) -> List[_Track_DB]:
-    #     select_sql = """
-    #         SELECT video_id AS id, title, performer, duration, thumbnail_url
-    #         FROM tracks
-    #         WHERE similarity(query, %s) > %s
-    #         ORDER BY similarity(query, %s) DESC
-    #         LIMIT %s;
-    #     """
-    #     params = [query, threshold, query, limit]
-
-    #     async with acquire_connection() as conn:
-    #         async with conn.cursor() as cursor:
-    #             await cursor.execute(select_sql, params)
-    #             return await cursor.fetchall()
     @staticmethod
-    async def get_by_query(query: str, limit: int = 10) -> List[_Track_DB]:
+    async def get_by_query(query: str, limit: int = 10) -> List[dict]:
+        pattern = f"%{query.strip()}%"
         select_sql = """
             SELECT video_id AS id, title, performer, duration, thumbnail_url
             FROM tracks
-            WHERE title ILIKE %s OR performer ILIKE %s
-            ORDER BY similarity(title, %s) DESC
+            WHERE query ILIKE %s
+            ORDER BY created_at DESC
             LIMIT %s;
         """
-        like_pattern = f"%{query}%"
-        params = [like_pattern, like_pattern, query, limit]
-
         async with acquire_connection() as conn:
             async with conn.cursor() as cursor:
-                await cursor.execute(select_sql, params)
-                return await cursor.fetchall()
-
-                
-
+                await cursor.execute(select_sql, (pattern, limit))
+                rows = await cursor.fetchall()
+                return rows
 
     @staticmethod
     async def get(track_id: int) -> _Track_DB | None:
@@ -145,6 +108,33 @@ class Track_DB:
                 await cursor.execute(select_sql, (track_id,))
                 record = await cursor.fetchone()
                 return Track_DB.deserialize(record) if record else None
+
+    @staticmethod
+    async def search(query: str) -> List[_Track_DB]:
+        select_sql = """
+        SELECT id, query, video_id, title, performer, duration, thumbnail_url, created_at
+        FROM tracks
+        WHERE query ILIKE %s
+        ORDER BY created_at DESC;
+        """
+
+        async with acquire_connection() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(select_sql, (f"%{query}%",))
+                rows = await cursor.fetchall()
+                return [Track_DB.deserialize(row) for row in rows]
+            
+    @staticmethod
+    async def delete_by_video_id(video_id: str):
+      delete_sql = """
+          DELETE FROM tracks
+          WHERE video_id = %s;
+      """
+      async with acquire_connection() as conn:
+          async with conn.cursor() as cursor:
+              await cursor.execute(delete_sql, (video_id,))
+          await conn.commit()
+
 
     @staticmethod
     async def search(query: str) -> List[_Track_DB]:
