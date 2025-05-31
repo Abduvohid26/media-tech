@@ -371,92 +371,92 @@ async def track_handle_popular_tracks_country_code_callback_query(update: Update
   await update.callback_query.edit_message_text(popular_tracks_text, reply_markup=reply_markup)
 
 
-async def track_recognize_by_file_path(context: Context, chat_id: int, user_id: int, file_path: str,
-                                       reply_message_id: int = None):
-  async def recognize_task():
-    try:
-      print("[🔊] Track convert boshlandi...")
-      result = await Track.recognize_by_file_path(file_path)
-      print(result)
+# async def track_recognize_by_file_path(context: Context, chat_id: int, user_id: int, file_path: str,
+#                                        reply_message_id: int = None):
+#   async def recognize_task():
+#     try:
+#       print("[🔊] Track convert boshlandi...")
+#       result = await Track.recognize_by_file_path(file_path)
+#       print(result)
 
-      if result:
-        print("[🎵] Track topildi.")
-        await track_recognize_from_recognize_result(context, chat_id, user_id, result, reply_message_id)
-        return "recognized"
-    except Exception as e:
-      print(f"[❌] Track tanishda xatolik: {e}")
-    return None
+#       if result:
+#         print("[🎵] Track topildi.")
+#         await track_recognize_from_recognize_result(context, chat_id, user_id, result, reply_message_id)
+#         return "recognized"
+#     except Exception as e:
+#       print(f"[❌] Track tanishda xatolik: {e}")
+#     return None
 
-  async def convert_task():
-    try:
-      print("[🔊] Voice convert boshlandi...")
-      check = await voice_convert(file_path, chat_id, user_id, context)
-      if check:
-        return "converted"
-      else:
-        return None
-    except Exception as e:
-      print(f"[❌] Voice convert xatolik: {e}")
-    return None
+#   async def convert_task():
+#     try:
+#       print("[🔊] Voice convert boshlandi...")
+#       check = await voice_convert(file_path, chat_id, user_id, context)
+#       if check:
+#         return "converted"
+#       else:
+#         return None
+#     except Exception as e:
+#       print(f"[❌] Voice convert xatolik: {e}")
+#     return None
 
-  try:
-    recognize = asyncio.create_task(recognize_task())
-    convert = asyncio.create_task(convert_task())
-
-    results = await asyncio.gather(recognize, convert, return_exceptions=True)
-    if not any(r for r in results if r in ("recognized", "converted")):
-      print("[⚠️] Har ikki task ham muvaffaqiyatsiz tugadi.")
-      await context.bot.send_message(chat_id, context.l("request.failed_text"))
-
-      context.logger.error(None, extra=dict(
-        action="TRACK_RECOGNIZE_FAILED",
-        chat_id=chat_id,
-        user_id=user_id,
-        file_path=file_path,
-        stack_trace="; ".join([str(r) for r in results if isinstance(r, Exception)])
-      ))
-    else:
-      context.logger.info(None, extra=dict(
-        action="TRACK_RECOGNIZE",
-        chat_id=chat_id,
-        user_id=user_id,
-        file_path=file_path,
-        status="; ".join(str(r) for r in results)
-      ))
-
-  except Exception as e:
-    print("[🚨] Umumiy xatolik:", traceback.format_exc())
-    await context.bot.send_message(chat_id, context.l("request.failed_text"))
-
-#######################3
-# async def track_recognize_by_file_path(context: Context, chat_id: int, user_id: int, file_path: str, reply_message_id: int = None):
 #   try:
-#     recognize_result = await Track.recognize_by_file_path(file_path)
-#     # print("::::::", recognize_result)
-#     # if recognize_result is None:
-#     #   await voice_convert(file_path, chat_id, user_id, context)
-#     #   return
-#     await track_recognize_from_recognize_result(context, chat_id, user_id, recognize_result, reply_message_id)
-#   except Exception:
-#     print(traceback.format_exc())
+#     recognize = asyncio.create_task(recognize_task())
+#     convert = asyncio.create_task(convert_task())
+
+#     results = await asyncio.gather(recognize, convert, return_exceptions=True)
+#     if not any(r for r in results if r in ("recognized", "converted")):
+#       print("[⚠️] Har ikki task ham muvaffaqiyatsiz tugadi.")
+#       await context.bot.send_message(chat_id, context.l("request.failed_text"))
+
+#       context.logger.error(None, extra=dict(
+#         action="TRACK_RECOGNIZE_FAILED",
+#         chat_id=chat_id,
+#         user_id=user_id,
+#         file_path=file_path,
+#         stack_trace="; ".join([str(r) for r in results if isinstance(r, Exception)])
+#       ))
+#     else:
+#       context.logger.info(None, extra=dict(
+#         action="TRACK_RECOGNIZE",
+#         chat_id=chat_id,
+#         user_id=user_id,
+#         file_path=file_path,
+#         status="; ".join(str(r) for r in results)
+#       ))
+
+#   except Exception as e:
+#     print("[🚨] Umumiy xatolik:", traceback.format_exc())
 #     await context.bot.send_message(chat_id, context.l("request.failed_text"))
 
-#     context.logger.error(None, extra=dict(
-#       action="TRACK_RECOGNIZE_FAILED",
-#       chat_id=chat_id,
-#       user_id=user_id,
-#       file_path=file_path,
-#       stack_trace=traceback.format_exc()
-#     ))
+#######################3
+async def track_recognize_by_file_path(context: Context, chat_id: int, user_id: int, file_path: str, reply_message_id: int = None):
+  try:
+    recognize_result = await Track.recognize_by_file_path(file_path)
+    # print("::::::", recognize_result)
+    # if recognize_result is None:
+    #   await voice_convert(file_path, chat_id, user_id, context)
+    #   return
+    await track_recognize_from_recognize_result(context, chat_id, user_id, recognize_result, reply_message_id)
+  except Exception:
+    print(traceback.format_exc())
+    await context.bot.send_message(chat_id, context.l("request.failed_text"))
 
-#     return
+    context.logger.error(None, extra=dict(
+      action="TRACK_RECOGNIZE_FAILED",
+      chat_id=chat_id,
+      user_id=user_id,
+      file_path=file_path,
+      stack_trace=traceback.format_exc()
+    ))
 
-#   context.logger.info(None, extra=dict(
-#     action="TRACK_RECOGNIZE",
-#     chat_id=chat_id,
-#     user_id=user_id,
-#     file_path=file_path
-#   ))
+    return
+
+  context.logger.info(None, extra=dict(
+    action="TRACK_RECOGNIZE",
+    chat_id=chat_id,
+    user_id=user_id,
+    file_path=file_path
+  ))
 ############################3
 
 async def track_handle_recognize_from_voice_message(update: Update, context: Context):
