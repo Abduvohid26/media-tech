@@ -53,7 +53,6 @@ async def _track_search(context: Context, search_query: str, search_page: int, c
       chat_id=chat_id,
       user_id=user_id
     ))
-    print(search_results_text, "TEXT")
     return (search_results_text, reply_markup)
   except Exception as ex:
     print(traceback.format_exc())

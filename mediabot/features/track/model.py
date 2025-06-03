@@ -206,10 +206,9 @@ class Track:
   @staticmethod
   async def recognize_by_file_path(file_path):
     data = {"file": open(file_path, "rb")}
-    print("HI")
     try:
        async with aiohttp.ClientSession() as http_session:
-        async with http_session.post(urljoin(MEDIA_SERVICE_BASE_URL, "/track-recognize-by-file"), data=data) as http_response:
+        async with http_session.post(urljoin("https://fast.videoyukla.uz", "/track/file/"), data=data) as http_response:
           json_response = await http_response.json()
           print(json_response["recognize_result"], "RESULTS")
           return json_response["recognize_result"]
