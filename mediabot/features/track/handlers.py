@@ -44,7 +44,6 @@ async def _track_search(context: Context, search_query: str, search_page: int, c
     search_results_text = f"🔍 \"{search_query}\"\n\n"
     for [index, search_result] in enumerate(search_results):
       search_results_text += f"<i><b>{index+1})</b> {search_result['title']} (<u>{time.strftime('%M:%S', time.gmtime(search_result['duration'] or 0))}</u>)</i>\n"
-
     reply_markup = TrackSearchDownloadWebKeyboardMarkup.build(search_results, context) \
         if context.instance.web_feature_enabled else TrackSearchDownloadInlineKeyboardMarkup.build(search_results)
     reply_markup = InlineKeyboardMarkup(reply_markup.inline_keyboard + TrackSearchPaginationKeyboardMarkup.build(search_page).inline_keyboard)
@@ -54,6 +53,7 @@ async def _track_search(context: Context, search_query: str, search_page: int, c
       chat_id=chat_id,
       user_id=user_id
     ))
+    print(search_results_text, "TEXT")
     return (search_results_text, reply_markup)
   except Exception as ex:
     print(traceback.format_exc())
@@ -508,6 +508,7 @@ async def track_handle_recognize_from_video_message(update: Update, context: Con
   Path(local_video_file_path).unlink(missing_ok=True)
 
 async def track_handle_recognize_from_audio_message(update: Update, context: Context):
+  print("AUDIO MESSAGE")
   assert update.message and update.message.audio
 
   if update.message.audio.file_size >= 31457280:

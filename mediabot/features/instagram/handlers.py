@@ -15,13 +15,17 @@ from mediabot.features.instagram.model import Instagram
 from mediabot.features.track.model import Track
 from mediabot.features.media_downloader.model import MediaService
 from mediabot.utils import AsyncFileDownloader
+from mediabot.decorators import job_check
+from mediabot.cache import redis
 
+@job_check
 async def _instagram_handle_link(context: Context, link: str, chat_id: int, user_id: int, reply_to_message_id: int = None, use_cache: bool = True):
   processing_message = await context.bot.send_message(chat_id, context.l("request.processing_text"), reply_to_message_id=reply_to_message_id)
 
   link_info_id = ""
 
   try:
+    await redis.set(f"user:{user_id}:job", "job", ex=30 * 2)
     instagram_post = await Instagram.get(link)
     link_info_id = await MediaService.save_link_info(instagram_post)
   except Exception:
@@ -58,7 +62,8 @@ async def _instagram_handle_link(context: Context, link: str, chat_id: int, user
           await advertisement_message_send(context, chat_id, Advertisement.KIND_VIDEO, video=fd, thumbnail=instagram_post["thumbnail_url"], supports_streaming=True)
         elif instagram_post["type"] == "photo":
           await advertisement_message_send(context, chat_id, Advertisement.KIND_PHOTO, photo=fd)
-    except:
+    except Exception as e:
+      print(f"ERROR INSTAGRAM: {e}")
       await context.bot.send_message(chat_id, context.l("request.failed_text"), reply_to_message_id=reply_to_message_id)
 
       context.logger.error(None, extra=dict(
@@ -72,6 +77,8 @@ async def _instagram_handle_link(context: Context, link: str, chat_id: int, user
     finally:
       pathlib.Path(downloaded_file_path).unlink(missing_ok=True)
       await processing_message.delete()
+      await redis.delete(f"user:{user_id}:job")
+
 
   context.logger.info(None, extra=dict(
     action="INSTAGRAM_LINK",
