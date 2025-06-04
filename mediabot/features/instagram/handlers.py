@@ -86,10 +86,11 @@ async def _instagram_handle_link(context: Context, link: str, chat_id: int, user
     user_id=user_id,
     link=link
   ))
-
+  print(context.instance.instagram_recognize_track_feature_enabled, "CHECK")
   if context.instance.instagram_recognize_track_feature_enabled and instagram_post["type"] == "video":
     try:
       recognize_result = await Track.recognize_by_link(instagram_post["download_url"])
+      print(recognize_result, "result", instagram_post["download_url"])
       if not recognize_result:
         return
 

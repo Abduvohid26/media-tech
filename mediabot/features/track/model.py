@@ -208,7 +208,7 @@ class Track:
     data = {"file": open(file_path, "rb")}
     try:
        async with aiohttp.ClientSession() as http_session:
-        async with http_session.post(urljoin("https://fast.videoyukla.uz", "/track/file/"), data=data) as http_response:
+        async with http_session.post(urljoin(MEDIA_SERVICE_BASE_URL, "/track-recognize-by-file"), data=data) as http_response:
           json_response = await http_response.json()
           print(json_response["recognize_result"], "RESULTS")
           return json_response["recognize_result"]
@@ -223,4 +223,5 @@ class Track:
     async with aiohttp.ClientSession(MEDIA_SERVICE_BASE_URL) as http_session:
       async with http_session.post("/track-recognize-by-link", params=params) as http_response:
         json_response = await http_response.json()
+        print(json_response, "res")
         return json_response["recognize_result"]
