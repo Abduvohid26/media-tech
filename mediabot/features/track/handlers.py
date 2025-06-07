@@ -20,6 +20,7 @@ from mediabot.features.advertisement.handlers import advertisement_message_send
 from mediabot.exceptions import InstanceQuotaLimitReachedException
 from mediabot.utils import get_local_path_of
 from mediabot.features.track.model import Track_DB
+from mediabot.features.client_manager.manager import ClientManager
 import asyncio
 from pydub import AudioSegment
 import speech_recognition as sr
@@ -179,12 +180,17 @@ async def _track_search(context: Context, search_query: str, search_page: int, c
 #     raise ApplicationHandlerStop()
 
 async def _track_download(context: Context, track_id: str, chat_id: int, user_id: int) -> None:
+  if await ClientManager.is_client_pending(user_id):
+    await context.bot.send_message(chat_id, context.l("request.pending"))
+    return
+
   processing_text = await context.bot.send_message(chat_id, context.l("request.processing_text"))
 
   try:
     track_file_id = await Track.get_track_cache_file_id(context.instance.id, track_id)
 
     if not track_file_id:
+      await ClientManager.set_client_pending(user_id)
       track_file_id = await Track.download_telegram(track_id, context.instance.token, context.instance.username)
 
     sent_message = await advertisement_message_send(context, chat_id, Advertisement.KIND_AUDIO, audio=track_file_id)
@@ -211,6 +217,8 @@ async def _track_download(context: Context, track_id: str, chat_id: int, user_id
     ))
   finally:
     await processing_text.delete()
+    await ClientManager.delete_client_pending(user_id)
+
 
 async def track_handle_search_callback_query(update: Update, context: Context) -> None:
   assert update.callback_query and update.callback_query.data and context.matches and update.effective_chat \
