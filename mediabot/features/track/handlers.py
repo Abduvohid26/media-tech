@@ -180,44 +180,48 @@ async def _track_search(context: Context, search_query: str, search_page: int, c
 #     raise ApplicationHandlerStop()
 
 async def _track_download(context: Context, track_id: str, chat_id: int, user_id: int) -> None:
-  if await ClientManager.is_client_pending(user_id):
-    await context.bot.send_message(chat_id, context.l("request.pending"))
-    return
+    processing_text = None
+    should_clear_pending = False
 
-  processing_text = await context.bot.send_message(chat_id, context.l("request.processing_text"))
+    try:
+        track_file_id = await Track.get_track_cache_file_id(context.instance.id, track_id)
 
-  try:
-    track_file_id = await Track.get_track_cache_file_id(context.instance.id, track_id)
+        if not track_file_id:
+            if await ClientManager.is_client_pending(user_id):
+                await context.bot.send_message(chat_id, context.l("request.pending"))
+                return
 
-    if not track_file_id:
-      await ClientManager.set_client_pending(user_id)
-      track_file_id = await Track.download_telegram(track_id, context.instance.token, context.instance.username)
+            await ClientManager.set_client_pending(user_id)
+            should_clear_pending = True  # ✅ pending faqat set qilingandan keyin true bo'ladi
 
-    sent_message = await advertisement_message_send(context, chat_id, Advertisement.KIND_AUDIO, audio=track_file_id)
-    await Track.set_track_cache_file_id(context.instance.id, track_id, sent_message.audio.file_id)
+            processing_text = await context.bot.send_message(chat_id, context.l("request.processing_text"))
+            track_file_id = await Track.download_telegram(track_id, context.instance.token, context.instance.username)
 
-    await Instance.increment_track_used(context.instance.id)
+        sent_message = await advertisement_message_send(context, chat_id, Advertisement.KIND_AUDIO, audio=track_file_id)
+        await Track.set_track_cache_file_id(context.instance.id, track_id, sent_message.audio.file_id)
+        await Instance.increment_track_used(context.instance.id)
 
-    context.logger.info(None, extra=dict(
-      action="TRACK_DOWNLOAD",
-      track_id=track_id,
-      chat_id=chat_id,
-      user_id=user_id
-    ))
+        context.logger.info(None, extra=dict(
+            action="TRACK_DOWNLOAD",
+            track_id=track_id,
+            chat_id=chat_id,
+            user_id=user_id
+        ))
 
-  except Exception:
-    await context.bot.send_message(chat_id, context.l("request.failed_text"))
-
-    context.logger.error(None, extra=dict(
-      action="TRACK_DOWNLOAD_FAILED",
-      track_id=track_id,
-      chat_id=chat_id,
-      user_id=user_id,
-      stack_trace=traceback.format_exc()
-    ))
-  finally:
-    await processing_text.delete()
-    await ClientManager.delete_client_pending(user_id)
+    except Exception:
+        await context.bot.send_message(chat_id, context.l("request.failed_text"))
+        context.logger.error(None, extra=dict(
+            action="TRACK_DOWNLOAD_FAILED",
+            track_id=track_id,
+            chat_id=chat_id,
+            user_id=user_id,
+            stack_trace=traceback.format_exc()
+        ))
+    finally:
+        if processing_text:
+            await processing_text.delete()
+        if should_clear_pending:
+            await ClientManager.delete_client_pending(user_id)
 
 
 async def track_handle_search_callback_query(update: Update, context: Context) -> None:

@@ -130,39 +130,82 @@ async def _youtube_link(context: Context, chat_id: int, user_id: int, link: str)
 
 
 async def _youtube_video_download(context: Context, chat_id: int, user_id: int, id: str, recognize: bool = False, job: str = "job"):
-  if await ClientManager.is_client_pending(user_id):
-    await context.bot.send_message(chat_id, context.l("request.pending"))
-    return
-  processing_message = await context.bot.send_message(chat_id, context.l("request.processing_text"))
-  recognize_result = None
+    processing_message = None
+    should_clear_pending = False
+    recognize_result = None
 
-  try:
-    file_id = await YouTube.get_youtube_cache_file_id(context.instance.id, id, False)
+    try:
+        if await ClientManager.is_client_pending(user_id):
+            await context.bot.send_message(chat_id, context.l("request.pending"))
+            return
 
-    if not file_id:
-      await ClientManager.set_client_pending(user_id)
-      (file_id, recognize_result,) = await YouTube.download_telegram(id, context.instance.token, recognize=recognize)
+        processing_message = await context.bot.send_message(chat_id, context.l("request.processing_text"))
 
-    sent_message = await advertisement_message_send(context, chat_id, Advertisement.KIND_VIDEO, video=file_id)
+        file_id = await YouTube.get_youtube_cache_file_id(context.instance.id, id, False)
 
-    if recognize_result:
-      await track_recognize_from_recognize_result(context, chat_id, user_id, recognize_result)
+        if not file_id:
+            await ClientManager.set_client_pending(user_id)
+            should_clear_pending = True  # pending faqat set qilingandan keyin clear qilinadi
 
-    await YouTube.set_youtube_cache_file_id(context.instance.id, id, False, sent_message.video.file_id)
-  except:
-    await context.bot.send_message(chat_id, context.l("request.failed_text"))
+            file_id, recognize_result = await YouTube.download_telegram(id, context.instance.token, recognize=recognize)
 
-    context.logger.error(None, extra=dict(
-      action="YOUTUBE_VIDEO_FAILED",
-      chat_id=chat_id,
-      user_id=user_id,
-      id=id,
-      stack_trace=traceback.format_exc()
-    ))
-  finally:
-    await processing_message.delete()
-    await ClientManager.delete_client_pending(user_id)
+        sent_message = await advertisement_message_send(context, chat_id, Advertisement.KIND_VIDEO, video=file_id)
 
+        if recognize_result:
+            await track_recognize_from_recognize_result(context, chat_id, user_id, recognize_result)
+
+        await YouTube.set_youtube_cache_file_id(context.instance.id, id, False, sent_message.video.file_id)
+
+    except Exception:
+        context.logger.error(None, extra=dict(
+            action="YOUTUBE_VIDEO_FAILED",
+            chat_id=chat_id,
+            user_id=user_id,
+            id=id,
+            stack_trace=traceback.format_exc()
+        ))
+        await context.bot.send_message(chat_id, context.l("request.failed_text"))
+
+    finally:
+        if processing_message:
+            await processing_message.delete()
+        if should_clear_pending:
+            await ClientManager.delete_client_pending(user_id)
+
+
+# async def _youtube_video_download(context: Context, chat_id: int, user_id: int, id: str, recognize: bool = False, job: str = "job"):
+#   if await ClientManager.is_client_pending(user_id):
+#     await context.bot.send_message(chat_id, context.l("request.pending"))
+#     return
+#   processing_message = await context.bot.send_message(chat_id, context.l("request.processing_text"))
+#   recognize_result = None
+
+#   try:
+#     file_id = await YouTube.get_youtube_cache_file_id(context.instance.id, id, False)
+
+#     if not file_id:
+#       await ClientManager.set_client_pending(user_id)
+#       (file_id, recognize_result,) = await YouTube.download_telegram(id, context.instance.token, recognize=recognize)
+
+#     sent_message = await advertisement_message_send(context, chat_id, Advertisement.KIND_VIDEO, video=file_id)
+
+#     if recognize_result:
+#       await track_recognize_from_recognize_result(context, chat_id, user_id, recognize_result)
+
+#     await YouTube.set_youtube_cache_file_id(context.instance.id, id, False, sent_message.video.file_id)
+#   except:
+#     await context.bot.send_message(chat_id, context.l("request.failed_text"))
+
+#     context.logger.error(None, extra=dict(
+#       action="YOUTUBE_VIDEO_FAILED",
+#       chat_id=chat_id,
+#       user_id=user_id,
+#       id=id,
+#       stack_trace=traceback.format_exc()
+#     ))
+#   finally:
+#     await processing_message.delete()
+#     await redis.delete(f"user:{user_id}:job")
 
 
 async def youtube_handle_preview_callback_query(update: Update, context: Context):

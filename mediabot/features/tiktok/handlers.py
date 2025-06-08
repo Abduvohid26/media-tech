@@ -15,69 +15,143 @@ from mediabot.cache import redis
 from mediabot.decorators import job_check
 from mediabot.features.client_manager.manager import ClientManager
 
+# async def _tiktok_download_telegram(context: Context, link: str, chat_id: int, user_id: int, reply_to_message_id=None):
+#   try:
+#     if await ClientManager.is_client_pending(user_id):
+#       await context.bot.send_message(chat_id, context.l("request.pending"), reply_to_message_id=reply_to_message_id)
+#       return
+#     processing_message = await context.bot.send_message(chat_id, \
+#       context.l("request.processing_text"), reply_to_message_id=reply_to_message_id)
+
+#     try:
+#       file_id_cache = await TikTok.get_tiktok_cache_file_id(context.instance.id, link)
+
+#       if file_id_cache:
+#         sent_message = await advertisement_message_send(context, chat_id, Advertisement.KIND_VIDEO, video=file_id_cache)
+#         await TikTok.set_tiktok_cache_file_id(context.instance.id, link, sent_message.video.file_id)
+#       else:
+#         await ClientManager.set_client_pending(user_id)
+#         file_id = await TikTok.download_telegram(link, context.instance.token)
+#         sent_message = await advertisement_message_send(context, chat_id, Advertisement.KIND_VIDEO, video=file_id)
+#         await TikTok.set_tiktok_cache_file_id(context.instance.id, link, sent_message.video.file_id)
+
+#       context.logger.info(None, extra=dict(
+#         action="TIKTOK_DOWNLOAD",
+#         chat_id=chat_id,
+#         user_id=user_id,
+#         link=link
+#       ))
+#     except Exception:
+#       context.logger.error(None, extra=dict(
+#         action="TIKTOK_DOWNLOAD_FAILED",
+#         chat_id=chat_id,
+#         user_id=user_id,
+#         link=link,
+#         stack_trace=traceback.format_exc()
+#       ))
+
+#       await context.bot.send_message(chat_id, context.l("request.failed_text"), reply_to_message_id=reply_to_message_id)
+#     finally:
+#       await processing_message.delete()
+
+
+#     await Instance.increment_tiktok_used(context.instance.id)
+
+#     if context.instance.tiktok_recognize_track_feature_enabled:
+#       try:
+#         recognize_result = await Track.recognize_by_link(link)
+#         await track_feature.track_recognize_from_recognize_result(context, chat_id, user_id, recognize_result, reply_to_message_id)
+
+#         context.logger.error(None, extra=dict(
+#           action="TIKTOK_RECOGNIZE_TRACK",
+#           chat_id=chat_id,
+#           user_id=user_id,
+#           link=link
+#         ))
+#       except:
+#         context.logger.error(None, extra=dict(
+#           action="TIKTOK_RECOGNIZE_TRACK_FAILED",
+#           chat_id=chat_id,
+#           user_id=user_id,
+#           stack_trace=traceback.format_exc(),
+#           link=link
+#         ))
+#   finally:
+#     await ClientManager.delete_client_pending(user_id)
+
+
 async def _tiktok_download_telegram(context: Context, link: str, chat_id: int, user_id: int, reply_to_message_id=None):
-  try:
-    if await ClientManager.is_client_pending(user_id):
-      await context.bot.send_message(chat_id, context.l("request.pending"), reply_to_message_id=reply_to_message_id)
-      return
-    processing_message = await context.bot.send_message(chat_id, \
-      context.l("request.processing_text"), reply_to_message_id=reply_to_message_id)
+    processing_message = None
+    should_clear_pending = False
 
     try:
-      file_id_cache = await TikTok.get_tiktok_cache_file_id(context.instance.id, link)
+        if await ClientManager.is_client_pending(user_id):
+            await context.bot.send_message(chat_id, context.l("request.pending"), reply_to_message_id=reply_to_message_id)
+            return
 
-      if file_id_cache:
-        sent_message = await advertisement_message_send(context, chat_id, Advertisement.KIND_VIDEO, video=file_id_cache)
-        await TikTok.set_tiktok_cache_file_id(context.instance.id, link, sent_message.video.file_id)
-      else:
-        await ClientManager.set_client_pending(user_id)
-        file_id = await TikTok.download_telegram(link, context.instance.token)
-        sent_message = await advertisement_message_send(context, chat_id, Advertisement.KIND_VIDEO, video=file_id)
-        await TikTok.set_tiktok_cache_file_id(context.instance.id, link, sent_message.video.file_id)
+        processing_message = await context.bot.send_message(
+            chat_id,
+            context.l("request.processing_text"),
+            reply_to_message_id=reply_to_message_id
+        )
 
-      context.logger.info(None, extra=dict(
-        action="TIKTOK_DOWNLOAD",
-        chat_id=chat_id,
-        user_id=user_id,
-        link=link
-      ))
+        file_id_cache = await TikTok.get_tiktok_cache_file_id(context.instance.id, link)
+
+        if file_id_cache:
+            sent_message = await advertisement_message_send(context, chat_id, Advertisement.KIND_VIDEO, video=file_id_cache)
+            await TikTok.set_tiktok_cache_file_id(context.instance.id, link, sent_message.video.file_id)
+        else:
+            await ClientManager.set_client_pending(user_id)
+            should_clear_pending = True  # pending faqat set qilingandan keyin clear qilinadi
+
+            file_id = await TikTok.download_telegram(link, context.instance.token)
+            sent_message = await advertisement_message_send(context, chat_id, Advertisement.KIND_VIDEO, video=file_id)
+            await TikTok.set_tiktok_cache_file_id(context.instance.id, link, sent_message.video.file_id)
+
+        context.logger.info(None, extra=dict(
+            action="TIKTOK_DOWNLOAD",
+            chat_id=chat_id,
+            user_id=user_id,
+            link=link
+        ))
+
+        await Instance.increment_tiktok_used(context.instance.id)
+
+        if context.instance.tiktok_recognize_track_feature_enabled:
+            try:
+                recognize_result = await Track.recognize_by_link(link)
+                await track_feature.track_recognize_from_recognize_result(context, chat_id, user_id, recognize_result, reply_to_message_id)
+
+                context.logger.info(None, extra=dict(
+                    action="TIKTOK_RECOGNIZE_TRACK",
+                    chat_id=chat_id,
+                    user_id=user_id,
+                    link=link
+                ))
+            except Exception:
+                context.logger.error(None, extra=dict(
+                    action="TIKTOK_RECOGNIZE_TRACK_FAILED",
+                    chat_id=chat_id,
+                    user_id=user_id,
+                    stack_trace=traceback.format_exc(),
+                    link=link
+                ))
+
     except Exception:
-      context.logger.error(None, extra=dict(
-        action="TIKTOK_DOWNLOAD_FAILED",
-        chat_id=chat_id,
-        user_id=user_id,
-        link=link,
-        stack_trace=traceback.format_exc()
-      ))
+        context.logger.error(None, extra=dict(
+            action="TIKTOK_DOWNLOAD_FAILED",
+            chat_id=chat_id,
+            user_id=user_id,
+            link=link,
+            stack_trace=traceback.format_exc()
+        ))
+        await context.bot.send_message(chat_id, context.l("request.failed_text"), reply_to_message_id=reply_to_message_id)
 
-      await context.bot.send_message(chat_id, context.l("request.failed_text"), reply_to_message_id=reply_to_message_id)
     finally:
-      await processing_message.delete()
-
-
-    await Instance.increment_tiktok_used(context.instance.id)
-
-    if context.instance.tiktok_recognize_track_feature_enabled:
-      try:
-        recognize_result = await Track.recognize_by_link(link)
-        await track_feature.track_recognize_from_recognize_result(context, chat_id, user_id, recognize_result, reply_to_message_id)
-
-        context.logger.error(None, extra=dict(
-          action="TIKTOK_RECOGNIZE_TRACK",
-          chat_id=chat_id,
-          user_id=user_id,
-          link=link
-        ))
-      except:
-        context.logger.error(None, extra=dict(
-          action="TIKTOK_RECOGNIZE_TRACK_FAILED",
-          chat_id=chat_id,
-          user_id=user_id,
-          stack_trace=traceback.format_exc(),
-          link=link
-        ))
-  finally:
-    await ClientManager.delete_client_pending(user_id)
+        if processing_message:
+            await processing_message.delete()
+        if should_clear_pending:
+            await ClientManager.delete_client_pending(user_id)
 
 
 async def tiktok_handle_link_message(update: Update, context: Context):
