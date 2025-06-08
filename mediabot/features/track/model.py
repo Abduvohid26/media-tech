@@ -229,14 +229,36 @@ class Track:
 
   @staticmethod
   async def recognize_by_link(link: str):
-    params = {"link": str(URL(link))}
+        print(MEDIA_SERVICE_BASE_URL, "BASE")
+        params = {"link": link}  # yoki str(URL(link)) agar validatsiya qilish kerak bo‘lsa
+        timeout = aiohttp.ClientTimeout(total=100)
 
-    try:
-       async with aiohttp.ClientSession(MEDIA_SERVICE_BASE_URL, timeout=aiohttp.ClientTimeout(100), raise_for_status=True) as http_session:
-        async with http_session.post("/track-recognize-by-link", params=params) as http_response:
-          json_response = await http_response.json()
-          print(json_response, "res")
-          return json_response["recognize_result"]
-    except Exception as e:
-      print(str(e))
-      return None
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(
+                    f"{MEDIA_SERVICE_BASE_URL}/track-recognize-by-link",
+                    params=params
+                ) as response:
+                    # raise_for_status o‘rnini bosadi
+                    if response.status != 200:
+                        print(f"Bad status: {response.status}")
+                        return None
+
+                    json_response = await response.json()
+                    print(json_response, "res")
+                    return json_response.get("recognize_result")
+        except Exception as e:
+            print("Exception:", str(e))
+            return None
+  # async def recognize_by_link(link: str):
+  #   params = {"link": str(URL(link))}
+
+  #   try:
+  #      async with aiohttp.ClientSession(MEDIA_SERVICE_BASE_URL, timeout=aiohttp.ClientTimeout(100), raise_for_status=True) as http_session:
+  #       async with http_session.post("/track-recognize-by-link", params=params) as http_response:
+  #         json_response = await http_response.json()
+  #         print(json_response, "res")
+  #         return json_response["recognize_result"]
+  #   except Exception as e:
+  #     print(str(e))
+  #     return None

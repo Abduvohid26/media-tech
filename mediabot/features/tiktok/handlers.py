@@ -137,7 +137,8 @@ async def _tiktok_download_telegram(context: Context, link: str, chat_id: int, u
                     link=link
                 ))
 
-    except Exception:
+    except Exception as e:
+        print(str(e))
         context.logger.error(None, extra=dict(
             action="TIKTOK_DOWNLOAD_FAILED",
             chat_id=chat_id,

@@ -118,6 +118,7 @@ async def _instagram_handle_link(context: Context, link: str, chat_id: int, user
         ))
   finally:
     await ClientManager.delete_client_pending(user_id)
+    
 
 async def _instagram_handle_collection_item_download(context: Context, chat_id: int, user_id: int, info_id: str, index: int):
   processing_message = await context.bot.send_message(chat_id, context.l("request.processing_text"))
