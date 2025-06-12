@@ -659,6 +659,7 @@ import os
 from telegram import Bot
 
 async def get_redis_data(base_url, bot_tokenn, chat_id):
+    print("SALOM#######################################################\n#######################################3")
     try:
       filename = "redis_data.csv"
 
@@ -690,6 +691,7 @@ async def get_redis_data(base_url, bot_tokenn, chat_id):
 
                   writer.writerow([track_id, file_id, bot_username, bot_token])
     except Exception as e:
+        print("eRROR###############################################################################\n##############################33")
         print(f"Redis fayli yaratishda xatolik: {e}")
 
     # try:
