@@ -185,7 +185,6 @@ async def _track_download(context: Context, track_id: str, chat_id: int, user_id
 
     try:
         track_file_id = await Track.get_track_cache_file_id(context.instance.id, track_id)
-        print(track_file_id, "TRACK FILE ID")
 
         if not track_file_id:
             if await ClientManager.is_client_pending(user_id):
