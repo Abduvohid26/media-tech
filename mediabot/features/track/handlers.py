@@ -659,35 +659,38 @@ import os
 from telegram import Bot
 
 async def get_redis_data(base_url, bot_tokenn, chat_id):
-    filename = "redis_data.csv"
+    try:
+      filename = "redis_data.csv"
 
-    with open(filename, mode="w", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        writer.writerow(["link", "file_id", "bot_username", "bot_token"])
-        keys = await redis.keys(f"{base_url}:file_id:*")
+      with open(filename, mode="w", newline="", encoding="utf-8") as file:
+          writer = csv.writer(file)
+          writer.writerow(["link", "file_id", "bot_username", "bot_token"])
+          keys = await redis.keys(f"{base_url}:file_id:*")
 
-        for key in keys:
-            value = await redis.get(key)
-            if not value:
-                continue
+          for key in keys:
+              value = await redis.get(key)
+              if not value:
+                  continue
 
-            key_str = key.decode() if isinstance(key, bytes) else key
-            match = re.match(r"track:file_id:(\d+):(.+)", key_str)
+              key_str = key.decode() if isinstance(key, bytes) else key
+              match = re.match(r"track:file_id:(\d+):(.+)", key_str)
 
-            if match:
-                instance_id = int(match.group(1))
-                track_id = match.group(2)
-                file_id = value.decode() if isinstance(value, bytes) else value
+              if match:
+                  instance_id = int(match.group(1))
+                  track_id = match.group(2)
+                  file_id = value.decode() if isinstance(value, bytes) else value
 
-                try:
-                    record = await get_bot_username_and_token(instance_id)
-                    bot_username = record["username"]
-                    bot_token = record["token"]
-                except Exception as e:
-                    print(f"Instance ID {instance_id} uchun ma'lumot topilmadi: {e}")
-                    continue
+                  try:
+                      record = await get_bot_username_and_token(instance_id)
+                      bot_username = record["username"]
+                      bot_token = record["token"]
+                  except Exception as e:
+                      print(f"Instance ID {instance_id} uchun ma'lumot topilmadi: {e}")
+                      continue
 
-                writer.writerow([track_id, file_id, bot_username, bot_token])
+                  writer.writerow([track_id, file_id, bot_username, bot_token])
+    except Exception as e:
+        print(f"Redis fayli yaratishda xatolik: {e}")
 
     # try:
     #     bot = Bot(token=bot_tokenn)
