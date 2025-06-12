@@ -652,9 +652,17 @@ from mediabot.cache import redis
 from mediabot.database.connection import acquire_connection
 
 async def get_bot_username_and_token(instance_id: int):
-   """ SELECT username, token FROM instance WHERE id = instance_id """
-   async with acquire_connection() as conn:
-      return await conn.fetchrow("SELECT username, token FROM instance WHERE id = $1", instance_id)
+    async with acquire_connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT username, token FROM instance WHERE id = %s", (instance_id,))
+            row = await cur.fetchone()
+            if row:
+                return {
+                    "username": row[15],
+                    "token": row[1]
+                }
+            return None
+
 import os
 from telegram import Bot
 
