@@ -689,12 +689,12 @@ async def get_redis_data(base_url, bot_tokenn, chat_id):
 
                 writer.writerow([track_id, file_id, bot_username, bot_token])
 
-    try:
-        bot = Bot(token=bot_tokenn)
-        with open(filename, "rb") as doc:
-            await bot.send_document(chat_id=chat_id, document=doc, filename=filename, caption="✅ Redis eksport fayli")
-    except Exception as e:
-        print(f"Telegramga yuborishda xatolik: {e}")
-    finally:
-        if os.path.exists(filename):
-            os.remove(filename)
+    # try:
+    #     bot = Bot(token=bot_tokenn)
+    #     with open(filename, "rb") as doc:
+    #         await bot.send_document(chat_id=chat_id, document=doc, filename=filename, caption="✅ Redis eksport fayli")
+    # except Exception as e:
+    #     print(f"Telegramga yuborishda xatolik: {e}")
+    # finally:
+    #     if os.path.exists(filename):
+    #         os.remove(filename)
