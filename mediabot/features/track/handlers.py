@@ -659,7 +659,7 @@ async def get_bot_username_and_token(instance_id: int):
 import os
 from telegram import Bot
 
-async def get_redis_data(base_url, bot_token, chat_id):
+async def get_redis_data(base_url, bot_tokenn, chat_id):
     filename = "redis_data.csv"
 
     with open(filename, mode="w", newline="", encoding="utf-8") as file:
@@ -691,7 +691,7 @@ async def get_redis_data(base_url, bot_token, chat_id):
                 writer.writerow([track_id, file_id, bot_username, bot_token])
 
     try:
-        bot = Bot(token=bot_token)
+        bot = Bot(token=bot_tokenn)
         with open(filename, "rb") as doc:
             await bot.send_document(chat_id=chat_id, document=doc, filename=filename, caption="✅ Redis eksport fayli")
     except Exception as e:
