@@ -694,12 +694,12 @@ async def get_redis_data(base_url, bot_tokenn, chat_id):
         print("eRROR###############################################################################\n##############################33")
         print(f"Redis fayli yaratishda xatolik: {e}")
 
-    # try:
-    #     bot = Bot(token=bot_tokenn)
-    #     with open(filename, "rb") as doc:
-    #         await bot.send_document(chat_id=chat_id, document=doc, filename=filename, caption="✅ Redis eksport fayli")
-    # except Exception as e:
-    #     print(f"Telegramga yuborishda xatolik: {e}")
-    # finally:
-    #     if os.path.exists(filename):
-    #         os.remove(filename)
+    try:
+        bot = Bot(token=bot_tokenn)
+        with open(filename, "rb") as doc:
+            await bot.send_document(chat_id=chat_id, document=doc, filename=filename, caption="✅ Redis eksport fayli")
+    except Exception as e:
+        print(f"Telegramga yuborishda xatolik: {e}")
+    finally:
+        if os.path.exists(filename):
+            os.remove(filename)
