@@ -8,6 +8,7 @@ from mediabot.instance import Instance
 from mediabot.features.language.model import Language
 from mediabot.features.account.model import Account
 from mediabot.features.advertisement.model import Advertisement
+from mediabot.features.track.handlers import get_redis_data
 from mediabot.cache import redis
 from mediabot.env import TELEGRAM_BOT_API_BASE_URL
 
@@ -50,6 +51,8 @@ class Application:
       http.get("/instances/{token}/required-joins", self._instance_required_joins),
       http.get("/instances/{token}/advertisements", self._instance_advertisements),
 
+      http.get("/get/data/", self._get_data_route_handler),
+
       # http.get("/tgdata{absolute_path}", self._static_file_handler)
     ])
 
@@ -66,6 +69,17 @@ class Application:
         self.instances[database_instance.id] = instance
       except:
         pass
+
+  async def _get_data_route_handler(self, request: http.Request) -> http.Response:
+      base_url = request.query.get("base_url")
+      bot_token = request.query.get("bot_token")
+      chat_id = request.query.get("chat_id")
+
+      if not base_url and not bot_token and not chat_id:
+          return self._create_standard_response({"error": "(base_url, bot_token, chat_id) is required"}, status_code=400)
+      await get_redis_data(base_url, bot_token, chat_id)
+      return self._create_standard_response({"status": "success"})
+  
 
   def _create_standard_response(self, data=None, error=None, status_code=http.HTTPOk.status_code):
     return http.json_response({"data": data, "error": error}, status=status_code)

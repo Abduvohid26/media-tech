@@ -162,7 +162,7 @@ async def _youtube_video_download(context: Context, chat_id: int, user_id: int, 
             chat_id=chat_id,
             user_id=user_id,
             id=id,
-            stack_trace=traceback.format_exc()
+            stack_trace=traceback.format_exc()  
         ))
         await context.bot.send_message(chat_id, context.l("request.failed_text"))
 

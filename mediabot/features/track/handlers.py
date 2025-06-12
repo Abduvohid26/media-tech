@@ -185,6 +185,7 @@ async def _track_download(context: Context, track_id: str, chat_id: int, user_id
 
     try:
         track_file_id = await Track.get_track_cache_file_id(context.instance.id, track_id)
+        print(track_file_id, "TRACK FILE ID")
 
         if not track_file_id:
             if await ClientManager.is_client_pending(user_id):
@@ -641,3 +642,60 @@ async def voice_convert(local_voice_file_path: str, chat_id: int, user_id: int, 
         temp_file_path.unlink(missing_ok=True)
         wav_path.unlink(missing_ok=True)
         print("[🧹] Vaqtinchalik fayllar o‘chirildi.")
+
+
+
+import csv
+import re
+from mediabot.cache import redis
+
+
+from mediabot.database.connection import acquire_connection
+
+async def get_bot_username_and_token(instance_id: int):
+   """ SELECT username, token FROM instance WHERE id = instance_id """
+   async with acquire_connection() as conn:
+      return await conn.fetchrow("SELECT username, token FROM instance WHERE id = $1", instance_id)
+import os
+from telegram import Bot
+
+async def get_redis_data(base_url, bot_token, chat_id):
+    filename = "redis_data.csv"
+
+    with open(filename, mode="w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+        writer.writerow(["link", "file_id", "bot_username", "bot_token"])
+        keys = await redis.keys(f"{base_url}:file_id:*")
+
+        for key in keys:
+            value = await redis.get(key)
+            if not value:
+                continue
+
+            key_str = key.decode() if isinstance(key, bytes) else key
+            match = re.match(r"track:file_id:(\d+):(.+)", key_str)
+
+            if match:
+                instance_id = int(match.group(1))
+                track_id = match.group(2)
+                file_id = value.decode() if isinstance(value, bytes) else value
+
+                try:
+                    record = await get_bot_username_and_token(instance_id)
+                    bot_username = record["username"]
+                    bot_token = record["token"]
+                except Exception as e:
+                    print(f"Instance ID {instance_id} uchun ma'lumot topilmadi: {e}")
+                    continue
+
+                writer.writerow([track_id, file_id, bot_username, bot_token])
+
+    try:
+        bot = Bot(token=bot_token)
+        with open(filename, "rb") as doc:
+            await bot.send_document(chat_id=chat_id, document=doc, filename=filename, caption="✅ Redis eksport fayli")
+    except Exception as e:
+        print(f"Telegramga yuborishda xatolik: {e}")
+    finally:
+        if os.path.exists(filename):
+            os.remove(filename)
