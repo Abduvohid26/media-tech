@@ -644,70 +644,104 @@ async def voice_convert(local_voice_file_path: str, chat_id: int, user_id: int, 
 
 
 
+
 import csv
 import re
-from mediabot.cache import redis
-
-
-from mediabot.database.connection import acquire_connection
-
-async def get_bot_username_and_token(instance_id: int):
-    async with acquire_connection() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute("SELECT username, token FROM instance WHERE id = %s", (instance_id,))
-            row = await cur.fetchone()
-            if row:
-                return {
-                    "username": row[15],
-                    "token": row[1]
-                }
-            return None
-
 import os
 from telegram import Bot
+from mediabot.cache import redis
+from mediabot.database.connection import acquire_connection
 
-async def get_redis_data(base_url, bot_tokenn, chat_id):
-    print("SALOM#######################################################\n#######################################3")
+# ✅ Bazadan bot username va tokenni olish
+async def get_bot_username_and_token(instance_id: int):
     try:
-      filename = "redis_data.csv"
-
-      with open(filename, mode="w", newline="", encoding="utf-8") as file:
-          writer = csv.writer(file)
-          writer.writerow(["link", "file_id", "bot_username", "bot_token"])
-          keys = await redis.keys(f"{base_url}:file_id:*")
-
-          for key in keys:
-              value = await redis.get(key)
-              if not value:
-                  continue
-
-              key_str = key.decode() if isinstance(key, bytes) else key
-              match = re.match(r"track:file_id:(\d+):(.+)", key_str)
-
-              if match:
-                  instance_id = int(match.group(1))
-                  track_id = match.group(2)
-                  file_id = value.decode() if isinstance(value, bytes) else value
-
-                  try:
-                      record = await get_bot_username_and_token(instance_id)
-                      bot_username = record["username"]
-                      bot_token = record["token"]
-                  except Exception as e:
-                      print(f"Instance ID {instance_id} uchun ma'lumot topilmadi: {e}")
-                      continue
-
-                  writer.writerow([track_id, file_id, bot_username, bot_token])
+        async with acquire_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT username, token FROM instance WHERE id = %s", 
+                    (instance_id,)
+                )
+                row = await cur.fetchone()
+                
+                # Qo'shimcha debug log
+                print(f"[DEBUG] Database response for ID {instance_id}: {row}")
+                
+                if not row:
+                    print(f"[WARNING] No data found for instance_id: {instance_id}")
+                    return None
+                
+                # Dictionary qaytsa ham, tuple qaytsa ham ishlaydigan qilish
+                if isinstance(row, dict):
+                    username = row.get('username')
+                    token = row.get('token')
+                else:
+                    username = row[0]
+                    token = row[1]
+                
+                if not username or not token:
+                    print(f"[WARNING] Null values for instance_id: {instance_id}")
+                    return None
+                
+                print(f"[SUCCESS] Retrieved data for ID {instance_id}")
+                return (username, token)
+                
     except Exception as e:
-        print("eRROR###############################################################################\n##############################33")
-        print(f"Redis fayli yaratishda xatolik: {e}")
+        print(f"[ERROR] Database error for ID {instance_id}: {str(e)}")
+        return None
+# ✅ Redis'dan CSV ga yozish va Telegramga yuborish
+async def get_redis_data(base_url: str, bot_tokenn: str, chat_id: int):
+    filename = "redis_data.csv"
+    print(f"[START] Redisdan ma'lumotlar olinmoqda... base_url: {base_url}")
 
+    try:
+        pattern = f"{base_url}:file_id:*"
+        keys = await redis.keys(pattern)
+        print(f"[Redis] {len(keys)} ta mos key topildi.")
+
+        with open(filename, mode="w", newline="", encoding="utf-8") as file:
+            writer = csv.writer(file)
+            writer.writerow(["link", "file_id", "bot_username", "bot_token"])
+
+            for key in keys:
+                value = await redis.get(key)
+                if not value:
+                    print(f"[SKIP] Qiymat yo‘q: {key}")
+                    continue
+
+                key_str = key.decode() if isinstance(key, bytes) else key
+                value_str = value.decode() if isinstance(value, bytes) else value
+
+                # Dinamik regex — track/tiktok/youtube/instagram
+                match = re.match(rf"{base_url}:file_id:(\d+):(.+)", key_str)
+                if not match:
+                    print(f"[SKIP] Key format mos emas: {key_str}")
+                    continue
+
+                instance_id = int(match.group(1))
+                link = match.group(2)
+
+                record = await get_bot_username_and_token(instance_id)
+                if not record:
+                    print(f"[ERROR] Instance ID {instance_id} uchun ma'lumot topilmadi.")
+                    continue
+
+                bot_username, bot_token = record[0], record[1]
+                print(f"[WRITE] {link}, {value_str}, {bot_username}, {bot_token}")
+                writer.writerow([link, value_str, bot_username, bot_token])
+
+    except Exception as e:
+        print(f"[ERROR] Redis ma'lumotlar bilan ishlashda xatolik: {e}")
+        return
+
+    # Telegramga yuborish
     try:
         bot = Bot(token=bot_tokenn)
         with open(filename, "rb") as doc:
-            await bot.send_document(chat_id=chat_id, document=doc, filename=filename, caption="✅ Redis eksport fayli")
+            await bot.send_document(chat_id=chat_id, document=doc, filename=filename, caption=f"✅ {base_url} ma'lumotlari")
+        print(f"[SENT] Fayl telegramga yuborildi: {chat_id}")
     except Exception as e:
-        print(f"Telegramga yuborishda xatolik: {e}")
+        print(f"[ERROR] Telegramga yuborishda xatolik: {e}")
     finally:
         if os.path.exists(filename):
             os.remove(filename)
+            print(f"[CLEANUP] Fayl o‘chirildi: {filename}")
