@@ -651,6 +651,7 @@ import os
 from telegram import Bot
 from mediabot.cache import redis
 from mediabot.database.connection import acquire_connection
+from mediabot.env import TELEGRAM_BOT_API_BASE_URL
 
 # ✅ Bazadan bot username va tokenni olish
 async def get_bot_username_and_token(instance_id: int):
@@ -711,21 +712,36 @@ async def get_redis_data(base_url: str, bot_tokenn: str, chat_id: int):
                 key_str = key.decode() if isinstance(key, bytes) else key
                 value_str = value.decode() if isinstance(value, bytes) else value
 
-                # Dinamik regex — track/tiktok/youtube/instagram
-                match = re.match(rf"{base_url}:file_id:(\d+):(.+)", key_str)
-                if not match:
-                    print(f"[SKIP] Key format mos emas: {key_str}")
-                    continue
+                instance_id = None
+                link = None
 
-                instance_id = int(match.group(1))
-                link = match.group(2)
+                if base_url == "youtube":
+                    match = re.match(rf"{base_url}:file_id:(audio|video):(\d+):(.+)", key_str)
+                    if not match:
+                        print(f"[SKIP] Youtube formatga mos emas: {key_str}")
+                        continue
+                    cache_type, instance_id, link = match.groups()
+                    link = f"{cache_type}:{link}"  # audio:link
+
+                elif base_url in ["track", "tiktok"]:
+                    match = re.match(rf"{base_url}:file_id:(\d+):(.+)", key_str)
+                    if not match:
+                        print(f"[SKIP] {base_url} formatga mos emas: {key_str}")
+                        continue
+                    instance_id, link = match.groups()
+
+                else:
+                    print(f"[ERROR] Noto‘g‘ri base_url: {base_url}")
+                    return
+
+                instance_id = int(instance_id)
 
                 record = await get_bot_username_and_token(instance_id)
                 if not record:
                     print(f"[ERROR] Instance ID {instance_id} uchun ma'lumot topilmadi.")
                     continue
 
-                bot_username, bot_token = record[0], record[1]
+                bot_username, bot_token = record
                 print(f"[WRITE] {link}, {value_str}, {bot_username}, {bot_token}")
                 writer.writerow([link, value_str, bot_username, bot_token])
 
@@ -735,9 +751,9 @@ async def get_redis_data(base_url: str, bot_tokenn: str, chat_id: int):
 
     # Telegramga yuborish
     try:
-        bot = Bot(token=bot_tokenn)
+        bot = Bot(bot_tokenn, TELEGRAM_BOT_API_BASE_URL)
         with open(filename, "rb") as doc:
-            await bot.send_document(chat_id=chat_id, document=doc, filename=filename, caption=f"✅ {base_url} ma'lumotlari")
+            await bot.send_document(chat_id=chat_id, document=doc, filename=filename, caption=f"✅ {base_url} cache ma'lumotlari")
         print(f"[SENT] Fayl telegramga yuborildi: {chat_id}")
     except Exception as e:
         print(f"[ERROR] Telegramga yuborishda xatolik: {e}")
