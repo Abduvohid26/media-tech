@@ -183,7 +183,9 @@ async def instagram_handle_music_button(update: Update, context: Context):
   except Exception as e:
     print("INSTAGRAM MUSIC CALLBACK ERROR:", e)
     traceback.print_exc()
-    await update.effective_message.reply_text("❌ Xatolik yuz berdi.")
+    await context.bot.send_message(update.effective_chat.id, context.l("request.failed_text"))
+
+    # await update.effective_message.reply_text("❌ Xatolik yuz berdi.")
   finally:
     await processing_message.delete()
 

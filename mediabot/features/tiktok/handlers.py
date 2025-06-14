@@ -14,6 +14,7 @@ from mediabot.features.track.model import Track
 from mediabot.cache import redis
 from mediabot.decorators import job_check
 from mediabot.features.client_manager.manager import ClientManager
+from mediabot.features.tiktok.button import TiktokMusicKeyboardMarkup
 
 # async def _tiktok_download_telegram(context: Context, link: str, chat_id: int, user_id: int, reply_to_message_id=None):
 #   try:
@@ -104,8 +105,9 @@ async def _tiktok_download_telegram(context: Context, link: str, chat_id: int, u
             await ClientManager.set_client_pending(user_id)
             should_clear_pending = True  # pending faqat set qilingandan keyin clear qilinadi
 
-            file_id = await TikTok.download_telegram(link, context.instance.token)
-            sent_message = await advertisement_message_send(context, chat_id, Advertisement.KIND_VIDEO, video=file_id)
+            file_id, download_url = await TikTok.download_telegram(link, context.instance.token)
+            reply_markup = TiktokMusicKeyboardMarkup.get_music_button(download_url, user_id)
+            sent_message = await advertisement_message_send(context, chat_id, Advertisement.KIND_VIDEO, video=file_id, reply_markup=reply_markup)
             await TikTok.set_tiktok_cache_file_id(context.instance.id, link, sent_message.video.file_id)
 
         context.logger.info(None, extra=dict(
@@ -117,25 +119,25 @@ async def _tiktok_download_telegram(context: Context, link: str, chat_id: int, u
 
         await Instance.increment_tiktok_used(context.instance.id)
 
-        if context.instance.tiktok_recognize_track_feature_enabled:
-            try:
-                recognize_result = await Track.recognize_by_link(link)
-                await track_feature.track_recognize_from_recognize_result(context, chat_id, user_id, recognize_result, reply_to_message_id)
+        # if context.instance.tiktok_recognize_track_feature_enabled:
+        #     try:
+        #         recognize_result = await Track.recognize_by_link(link)
+        #         await track_feature.track_recognize_from_recognize_result(context, chat_id, user_id, recognize_result, reply_to_message_id)
 
-                context.logger.info(None, extra=dict(
-                    action="TIKTOK_RECOGNIZE_TRACK",
-                    chat_id=chat_id,
-                    user_id=user_id,
-                    link=link
-                ))
-            except Exception:
-                context.logger.error(None, extra=dict(
-                    action="TIKTOK_RECOGNIZE_TRACK_FAILED",
-                    chat_id=chat_id,
-                    user_id=user_id,
-                    stack_trace=traceback.format_exc(),
-                    link=link
-                ))
+        #         context.logger.info(None, extra=dict(
+        #             action="TIKTOK_RECOGNIZE_TRACK",
+        #             chat_id=chat_id,
+        #             user_id=user_id,
+        #             link=link
+        #         ))
+        #     except Exception:
+        #         context.logger.error(None, extra=dict(
+        #             action="TIKTOK_RECOGNIZE_TRACK_FAILED",
+        #             chat_id=chat_id,
+        #             user_id=user_id,
+        #             stack_trace=traceback.format_exc(),
+        #             link=link
+        #         ))
 
     except Exception as e:
         print(str(e))
@@ -181,3 +183,42 @@ async def tiktok_handle_link_chat_member(update: Update, context: Context, link:
   assert update.chat_member and update.effective_user
 
   await _tiktok_download_telegram(context, link, update.effective_user.id, update.effective_user.id)
+
+import json
+
+async def tiktok_handle_music_button(update: Update, context: Context):
+    processing_message = await context.bot.send_message(update.effective_chat.id, context.l("request.processing_text"))
+
+    try:
+        query = update.callback_query
+        await query.answer()
+
+        raw_data = query.data.split(":", 1)[-1]  # split only once
+        data = json.loads(raw_data)
+
+        download_url = data["link"]
+        user_id = data["user_id"]
+
+
+        recognize_result = await Track.recognize_by_link(download_url)
+        if not recognize_result:
+            await context.bot.send_message(update.effective_chat.id, context.l("request.failed_text"))
+
+            return
+
+    
+        await track_feature.track_recognize_from_recognize_result(
+            context=context,
+            chat_id=update.effective_chat.id,
+            user_id=int(user_id),
+            recognize_result=recognize_result,
+            reply_to_message_id=query.message.message_id
+        )
+    except Exception as e:
+        print("INSTAGRAM MUSIC CALLBACK ERROR:", e)
+        traceback.print_exc()
+        await context.bot.send_message(update.effective_chat.id, context.l("request.failed_text"))
+
+        # await update.effective_message.reply_text("❌ Xatolik yuz berdi.")
+    finally:
+        await processing_message.delete()
