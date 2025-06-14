@@ -105,9 +105,9 @@ async def _tiktok_download_telegram(context: Context, link: str, chat_id: int, u
             await ClientManager.set_client_pending(user_id)
             should_clear_pending = True  # pending faqat set qilingandan keyin clear qilinadi
 
-            file_id, download_url = await TikTok.download_telegram(link, context.instance.token)
-            reply_markup = TiktokMusicKeyboardMarkup.get_music_button(download_url, user_id)
-            sent_message = await advertisement_message_send(context, chat_id, Advertisement.KIND_VIDEO, video=file_id, reply_markup=reply_markup)
+            file_id = await TikTok.download_telegram(link, context.instance.token)
+            # reply_markup = TiktokMusicKeyboardMarkup.get_music_button(download_url, user_id)
+            sent_message = await advertisement_message_send(context, chat_id, Advertisement.KIND_VIDEO, video=file_id)
             await TikTok.set_tiktok_cache_file_id(context.instance.id, link, sent_message.video.file_id)
 
         context.logger.info(None, extra=dict(
